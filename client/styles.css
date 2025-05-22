@@ -1,0 +1,46 @@
+body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    /* overflow-x: 0; */
+}
+
+#map {
+    height: 93vh;
+    /* Adjust for navbar height */
+    width: auto;
+}
+
+#page-title {
+    color: white;
+    text-decoration: none;
+}
+
+
+.nav-item {
+    /* No specific styles needed here for pinning to right as flexbox takes care of it */
+    padding: 8px 16px;
+    background-color: #99d6a44e;
+    color: white;
+    border: none;
+    cursor: pointer;
+    text-decoration: none;
+    border-radius: 8px;
+}
+
+.navbar {
+    position: sticky;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: auto;
+    height: auto;
+    background-color: #333;
+    /* -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px); */
+    color: white;
+    padding: 10px 20px;
+    text-align: center;
+    font-size: 20px;
+    /* overflow: hidden; */
+}
