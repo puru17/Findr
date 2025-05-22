@@ -1,101 +1,172 @@
-var startLocation = [49.257083, -122.953722] // vancouver
-var zoom = 13
+// Map configuration
+const MAP_CONFIG = {
+    startLocation: [49.257083, -122.953722], // vancouver
+    zoom: 13,
+    options: {
+        inertia: true,
+        inertiaDeceleration: 5000,
+        inertiaMaxSpeed: Infinity,
+        inertiaThreshold: 60,
+        keyboard: true,
+        keyboardPanDelta: 200
+    }
+};
 
-var mapOptions = {
-    inertia: true, // Enable inertia
-    inertiaDeceleration: 5000, // Adjust deceleration rate (default: 3000)
-    inertiaMaxSpeed: Infinity, // Maximum speed during inertia (default: Infinity)
-    // Optional: You might want to limit the zoom level during inertia:
-    inertiaThreshold: 60, // Adjust the zoom threshold as needed
-    keyboard: true,
-    keyboardPanDelta: 200
+// API endpoints
+const API = {
+    users: '/api/users',
+    clicks: '/api/clicks'
+};
+
+// Map instance
+let map;
+let markers = [];
+
+// Initialize map
+function initMap() {
+    map = L.map('map', MAP_CONFIG.options).setView(MAP_CONFIG.startLocation, MAP_CONFIG.zoom);
+    
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">Findr</a> contributors'
+    }).addTo(map);
+
+    L.control.scale().addTo(map);
+    map.on('click', onMapClick);
 }
-var map = L.map('map', mapOptions).setView(startLocation, zoom);
 
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">Findr</a> contributors'
-}).addTo(map);
-
-L.control.scale().addTo(map);
-
-
+// Add marker to map
 function addMapMarker(location, text) {
-    L.marker(location).addTo(map)
+    const marker = L.marker(location)
+        .addTo(map)
         .bindPopup(text)
         .openPopup();
+    markers.push(marker);
+    return marker;
 }
 
+// Clear all markers
+function clearMarkers() {
+    markers.forEach(marker => marker.remove());
+    markers = [];
+}
+
+// Handle map click
 function onMapClick(e) {
-    console.log("You clicked the map at " + e.latlng);
-
-    const url = '/api/clicks'; // API endpoint
-    // const data = 'myDATA'; // Data to send
-
-    // postData(url, e.latlng);
+    console.log("You clicked the map at", e.latlng);
+    // TODO: Implement click handling
 }
 
-map.on('click', onMapClick);
-
-async function getUsers(url = '/api/users') {
-    var schRadius = document.getElementById("search-radius").value
-    // console.log(schRadius)
-    postData(url, schRadius)
-
-    try {
-        const response = await fetch(url, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json' // Adjust content type if necessary
-            },
-            // body: data
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const responseData = await response.json(); // or response.json() if the API returns JSON
-        console.log("Get locations Success");
-        console.log(responseData);
-
-        for (let i = 0; i < responseData.length; i++) {
-
-            if (responseData[i]['dist'] != null) {
-                var markerText = "id: " + responseData[i]['id'] + "<br/>Name: " + responseData[i]['name'] + "<br/>LatLng: " + responseData[i]['latitude'] + ", " + responseData[i]['longitude'] + "<br/>Distance: " + responseData[i]['dist'] + " metres"
-                addMapMarker([responseData[i]['latitude'], responseData[i]['longitude']], markerText)
-            }
-        }
-        return responseData;
-    } catch (error) {
-        console.error('Error:', error);
+// Show loading state
+function setLoading(isLoading) {
+    const button = document.getElementById('qry-btn');
+    if (isLoading) {
+        button.disabled = true;
+        button.textContent = 'Loading...';
+    } else {
+        button.disabled = false;
+        button.textContent = 'Populate Map';
     }
 }
 
+// Show error message
+function showError(message) {
+    // TODO: Implement proper error UI
+    console.error(message);
+    alert(message);
+}
 
-async function postData(url = '', data = '') {
+// Validate search radius
+function validateRadius(radius) {
+    const num = parseFloat(radius);
+    if (isNaN(num)) {
+        throw new Error('Please enter a valid number');
+    }
+    if (num <= 0) {
+        throw new Error('Radius must be greater than 0');
+    }
+    if (num > 41) {
+        throw new Error('Radius must be less than 41 km');
+    }
+    return num;
+}
+
+// Update search radius
+async function updateSearchRadius(radius) {
     try {
-        const response = await fetch(url, {
+        const response = await fetch(API.users, {
             method: 'POST',
             headers: {
-                'Content-Type': 'text/plain' // Adjust content type if necessary
+                'Content-Type': 'text/plain'
             },
-            body: data
+            body: radius.toString()
         });
 
         if (!response.ok) {
-            // Handle HTTP errors (e.g., 404, 500)
-            throw new Error(`HTTP error! status: ${response.status}`);
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to update search radius');
         }
 
-        const responseData = await response.text(); // or response.json() if the API returns JSON
-        console.log('Success:', responseData);
-        return responseData;
+        return await response.json();
     } catch (error) {
-        console.error('Error:', error);
+        showError(error.message);
+        throw error;
     }
 }
 
-getUsers()
+// Fetch and display users
+async function getUsers() {
+    try {
+        setLoading(true);
+        clearMarkers();
+
+        const radiusInput = document.getElementById("search-radius");
+        const radius = validateRadius(radiusInput.value);
+        
+        await updateSearchRadius(radius);
+
+        const response = await fetch(API.users);
+        if (!response.ok) {
+            console.error('Failed to fetch locations');
+            return;
+        }
+
+        const locations = await response.json();
+        console.log("Locations fetched successfully:", locations);
+
+        locations.forEach(location => {
+            if (location.dist != null) {
+                const markerText = `
+                    ID: ${location.id}<br/>
+                    Name: ${location.name}<br/>
+                    Location: ${location.latitude}, ${location.longitude}<br/>
+                    Distance: ${location.dist} metres
+                `;
+                addMapMarker([location.latitude, location.longitude], markerText);
+            }
+        });
+    } catch (error) {
+        console.error('Error fetching users:', error);
+    } finally {
+        setLoading(false);
+    }
+}
+
+// Handle login button click
+function handleLoginClick() {
+    window.location.href = '/login';
+}
+
+// Initialize application
+document.addEventListener('DOMContentLoaded', () => {
+    initMap();
+    getUsers();
+    
+    // Add click handler for login button
+    const loginBtn = document.getElementById('login-btn');
+    if (loginBtn) {
+        loginBtn.addEventListener('click', handleLoginClick);
+    }
+});
 
 // let { data: Users, error } = await supabase
 // .from('Users')

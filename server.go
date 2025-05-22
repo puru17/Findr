@@ -11,11 +11,54 @@ import (
 	supabase "github.com/supabase-community/supabase-go"
 )
 
-var supabaseClient *supabase.Client
-var err error
-var startLat = 49.266567
-var startLng = -122.968769
-var maxDistance float64 = 200
+// Config holds all configuration values
+type Config struct {
+	StartLat    float64
+	StartLng    float64
+	MaxDistance float64
+	SupabaseURL string
+	SupabaseKey string
+	ServerPort  string
+}
+
+var (
+	config         Config
+	supabaseClient *supabase.Client
+)
+
+func loadConfig() error {
+	// Load environment variables
+	config.SupabaseURL = os.Getenv("SUPABASE_URL")
+	config.SupabaseKey = os.Getenv("SUPABASE_KEY")
+	config.ServerPort = os.Getenv("SERVER_PORT")
+	if config.ServerPort == "" {
+		config.ServerPort = "8080"
+	}
+
+	// Load default values
+	config.StartLat = 49.266567
+	config.StartLng = -122.968769
+	config.MaxDistance = 200
+
+	// Validate required environment variables
+	if config.SupabaseURL == "" || config.SupabaseKey == "" {
+		return fmt.Errorf("SUPABASE_URL and SUPABASE_KEY environment variables must be set")
+	}
+
+	return nil
+}
+
+func init() {
+	if err := loadConfig(); err != nil {
+		log.Fatal("Failed to load configuration:", err)
+	}
+
+	var err error
+	supabaseClient, err = supabase.NewClient(config.SupabaseURL, config.SupabaseKey, &supabase.ClientOptions{})
+	if err != nil {
+		log.Fatal("Failed to initialize Supabase client:", err)
+	}
+}
 
 func root(c *gin.Context) {
 	c.File("./client/index.html")
@@ -29,45 +72,66 @@ func signup(c *gin.Context) {
 }
 
 func login(c *gin.Context) {
-	c.IndentedJSON(http.StatusOK, gin.H{
-		"TODO":  "User login page",
-		"hello": "buddy",
+	if c.Request.Method == "GET" {
+		c.File("./client/login.html")
+		return
+	}
+
+	var loginData struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	if err := c.ShouldBindJSON(&loginData); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
+		return
+	}
+
+	// TODO: Implement actual authentication logic
+	// For now, just return success
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Login successful",
 	})
 }
 
 func apiSetRadius(c *gin.Context) {
-	// Read the raw request body
 	rawData, err := c.GetRawData()
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to read request body"})
 		return
 	}
 
 	dataString := string(rawData)
 	num, err := strconv.ParseFloat(dataString, 64)
 	if err != nil {
-		fmt.Println("Error:", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid radius value"})
 		return
 	}
-	fmt.Println("search radius ", num)
-	maxDistance = num * 1000
 
-	// http response to client browser
+	// Validate radius
+	if num <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Radius must be greater than 0"})
+		return
+	}
+
+	config.MaxDistance = num * 1000
 	c.JSON(http.StatusOK, gin.H{
-		"message":  "Data received by server",
-		"raw_data": dataString,
+		"message": "Radius updated successfully",
+		"radius":  num,
 	})
 }
 
 func apiGetUsers(c *gin.Context) {
-
 	result := supabaseClient.Rpc("get_nearby_locations", "1", map[string]interface{}{
-		"input_longitude":    startLng,
-		"input_latitude":     startLat,
-		"input_max_distance": maxDistance,
+		"input_longitude":    config.StartLng,
+		"input_latitude":     config.StartLat,
+		"input_max_distance": config.MaxDistance,
 	})
 
-	// fmt.Println(result)
+	if result == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch nearby locations"})
+		return
+	}
 
 	c.Data(http.StatusOK, "application/json", []byte(result))
 }
@@ -97,21 +161,6 @@ func apiGetUsers(c *gin.Context) {
 // 	})
 // }
 
-func init() {
-	supabaseUrl := os.Getenv("SUPABASE_URL")
-	supabaseKey := os.Getenv("SUPABASE_KEY")
-
-	if supabaseUrl == "" || supabaseKey == "" {
-		log.Fatal("Error: SUPABASE_URL and SUPABASE_KEY environment variables must be set")
-	}
-
-	supabaseClient, err = supabase.NewClient(supabaseUrl, supabaseKey, &supabase.ClientOptions{})
-
-	if err != nil {
-		fmt.Println("cannot initalize client", err)
-	}
-}
-
 // func appendStringToFile(filename string, data string) error {
 // 	// Open the file in append mode. Create it if it doesn't exist.
 // 	// 0644 gives read and write permissions to the owner, and read
@@ -139,10 +188,24 @@ func init() {
 
 func main() {
 	r := gin.Default()
+
+	// Add CORS middleware
+	r.Use(func(c *gin.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+
+		c.Next()
+	})
+
 	r.Static("/client", "./client")
 
 	r.GET("/", root)
-
 	r.GET("/api/users", apiGetUsers)
 	r.POST("/api/users", apiSetRadius)
 	// r.POST("/api/clicks", apiPostClicks)
@@ -153,5 +216,9 @@ func main() {
 	r.POST("/login", login)
 	r.GET("/login", login)
 
-	r.Run("localhost:8080") // listen and serve on 0.0.0.0:8080
+	serverAddr := fmt.Sprintf("localhost:%s", config.ServerPort)
+	log.Printf("Server starting on %s", serverAddr)
+	if err := r.Run(serverAddr); err != nil {
+		log.Fatal("Failed to start server:", err)
+	}
 }
