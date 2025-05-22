@@ -2,13 +2,73 @@ body {
     margin: 0;
     padding: 0;
     width: 100%;
-    /* overflow-x: 0; */
+    height: 100vh;
+    overflow: hidden;
 }
 
 #map {
-    height: 93vh;
-    /* Adjust for navbar height */
-    width: auto;
+    position: absolute;
+    top: 60px; /* Height of navbar */
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1;
+}
+
+.navbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 60px; /* Fixed height for navbar */
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #333;
+    color: white;
+    padding: 10px 20px;
+    text-align: center;
+    font-size: 20px;
+    z-index: 1000;
+}
+
+/* Ensure all Leaflet controls are visible */
+.leaflet-control-container {
+    position: absolute;
+    z-index: 1001;
+}
+
+/* Position zoom controls specifically */
+.leaflet-control-zoom {
+    margin-top: 70px !important;
+}
+
+/* Fix for scale control visibility */
+.leaflet-control-scale-line {
+    -moz-box-sizing: content-box;
+    box-sizing: content-box;
+}
+
+/* Position scale and attribution at bottom */
+.leaflet-control-scale {
+    position: absolute !important;
+    bottom: 20px !important;
+    left: 10px !important;
+    margin: 0 !important;
+    z-index: 1001 !important;
+    background: white !important;
+    padding: 2px 5px !important;
+    border: 2px solid rgba(0,0,0,0.2) !important;
+    border-radius: 4px !important;
+}
+
+.leaflet-control-attribution {
+    position: absolute !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    margin: 0 !important;
+    z-index: 1001 !important;
 }
 
 #page-title {
@@ -16,9 +76,7 @@ body {
     text-decoration: none;
 }
 
-
 .nav-item {
-    /* No specific styles needed here for pinning to right as flexbox takes care of it */
     padding: 8px 16px;
     background-color: #99d6a44e;
     color: white;
@@ -26,21 +84,4 @@ body {
     cursor: pointer;
     text-decoration: none;
     border-radius: 8px;
-}
-
-.navbar {
-    position: sticky;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    width: auto;
-    height: auto;
-    background-color: #333;
-    /* -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px); */
-    color: white;
-    padding: 10px 20px;
-    text-align: center;
-    font-size: 20px;
-    /* overflow: hidden; */
 }
