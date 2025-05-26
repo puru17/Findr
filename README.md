@@ -5,9 +5,7 @@ Findr is a location-based web application that helps users discover and connect 
 ## Features
 
 - Interactive map interface using Leaflet.js
-- Customizable search radius
 - User authentication system
-- Responsive design with modern UI
 
 ## Prerequisites
 
@@ -86,7 +84,7 @@ air
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License.
 
 ## Acknowledgments
 
